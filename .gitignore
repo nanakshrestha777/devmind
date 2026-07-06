@@ -1,0 +1,12 @@
+# SQLite database
+*.db
+
+# Binary executable
+devmind
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

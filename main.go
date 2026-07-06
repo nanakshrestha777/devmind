@@ -9,15 +9,17 @@ import (
 func main() {
 	database, err := db.InitDB("devmind.db")
 	if err != nil {
-		log.Fatalf("Database initializatio%v", err)
+		log.Fatalf("Database initialization failed: %v", err)
 	}
 
-	defer database.Close()
-	log.Println("SQLite Database initialized successfully.")
+	defer database.Conn.Close()
+	log.Println("Database initialized successfully.")
 
-	err = parser.ParseFile("testdata/dummy.go")
+	err = parser.ParseFile("testdata/dummy.go", database)
 	if err != nil {
 		log.Fatalf("parser failed: %v", err)
 	}
+
+	log.Println("Parsing completed successfully.")
 
 }

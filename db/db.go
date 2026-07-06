@@ -44,9 +44,7 @@ func (db *DB) createSchema() error {
 		from_node_id TEXT NOT NULL,
 		to_node_id TEXT NOT NULL,
 		type TEXT NOT NULL,
-		PRIMARY KEY (from_node_id, to_node_id, type),
-		FOREIGN KEY (from_node_id) REFERENCES nodes(id) ON DELETE CASCADE,
-		FOREIGN KEY (to_node_id) REFERENCES nodes(id) ON DELETE CASCADE
+		PRIMARY KEY (from_node_id, to_node_id, type)
 	);`
 
 	_, err := db.Conn.Exec(schema)
