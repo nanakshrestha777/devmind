@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
@@ -11,12 +13,23 @@ type DB struct {
 	Conn *sql.DB
 }
 
-func InitDB(filepath string) (*DB, error) {
-	conn, err := sql.Open("sqlite", filepath)
+func InitDB(dbpath string) (*DB, error) {
+	// 1. Create the directory if it doesn't exist (e.g., 'data/')
+	dir := filepath.Dir(dbpath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// 2. Open the database
+	conn, err := sql.Open("sqlite", dbpath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// 3. Enable Foreign Keys
 	if _, err := conn.Exec("PRAGMA foreign_keys=ON;"); err != nil {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
@@ -53,6 +66,39 @@ func (db *DB) createSchema() error {
 	}
 
 	return nil
+}
+
+func (db *DB) GetFunctionReport() {
+	query := `
+	SELECT n.name, e.to_node_id 
+	FROM nodes n
+	LEFT JOIN edges e ON n.id = e.from_node_id
+	WHERE n.type = 'function'`
+
+	rows, err := db.Conn.Query(query)
+	if err != nil {
+		fmt.Printf("Error querying report: %v\n", err)
+		return
+	}
+	defer rows.Close()
+
+	fmt.Println("\n--- Project Analysis Report ---")
+	for rows.Next() {
+		var name string
+		var calls sql.NullString
+
+		err := rows.Scan(&name, &calls)
+		if err != nil {
+			fmt.Printf("Error scanning row: %v\n", err)
+			continue
+		}
+
+		if !calls.Valid {
+			fmt.Printf("Function: %s | Calls: None\n", name)
+		} else {
+			fmt.Printf("Function: %s | Calls: %s\n", name, calls.String)
+		}
+	}
 }
 
 func (db *DB) Close() error {

@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	database, err := db.InitDB("devmind.db")
+	database, err := db.InitDB("data/devmind.db")
 	if err != nil {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
@@ -21,5 +21,7 @@ func main() {
 	}
 
 	log.Println("Parsing completed successfully.")
+
+	database.GetFunctionReport()
 
 }

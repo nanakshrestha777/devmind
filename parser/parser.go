@@ -22,7 +22,7 @@ func ParseFile(filePath string, database *db.DB) error {
 		if funcDecl, ok := n.(*ast.FuncDecl); ok {
 			pos := fset.Position(funcDecl.Pos())
 			end := fset.Position(funcDecl.End())
-			
+
 			// Set the current ID
 			currentFuncNodeID = fmt.Sprintf("%s:%d", funcDecl.Name.Name, pos.Line)
 
@@ -43,9 +43,9 @@ func ParseFile(filePath string, database *db.DB) error {
 					// For this 80/20 version, we assume the node exists.
 					// Note: Real-world needs a lookup; here we just use the name as ID.
 					// To fix the Foreign Key, the 'to' node must exist in 'nodes' table.
-					
+
 					fmt.Printf("Linking: %s -> calls -> %s\n", currentFuncNodeID, ident.Name)
-					
+
 					// We use a dummy ID for the 'to' node to bypass the immediate constraint error
 					// or you would need to look up the actual ID of 'ident.Name' from the DB.
 					query := `INSERT OR IGNORE INTO edges (from_node_id, to_node_id, type) VALUES (?, ?, ?)`
