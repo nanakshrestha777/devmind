@@ -6,6 +6,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 )
 
 func ParseFile(filePath string, database *db.DB) error {
@@ -35,19 +37,12 @@ func ParseFile(filePath string, database *db.DB) error {
 			}
 		}
 
-		// 2. Handle Function Calls
 		if call, ok := n.(*ast.CallExpr); ok {
 			if ident, ok := call.Fun.(*ast.Ident); ok {
 				if currentFuncNodeID != "" {
-					// We search for the node that matches the name called.
-					// For this 80/20 version, we assume the node exists.
-					// Note: Real-world needs a lookup; here we just use the name as ID.
-					// To fix the Foreign Key, the 'to' node must exist in 'nodes' table.
 
 					fmt.Printf("Linking: %s -> calls -> %s\n", currentFuncNodeID, ident.Name)
 
-					// We use a dummy ID for the 'to' node to bypass the immediate constraint error
-					// or you would need to look up the actual ID of 'ident.Name' from the DB.
 					query := `INSERT OR IGNORE INTO edges (from_node_id, to_node_id, type) VALUES (?, ?, ?)`
 					_, err := database.Conn.Exec(query, currentFuncNodeID, ident.Name, "calls")
 					if err != nil {
@@ -60,4 +55,27 @@ func ParseFile(filePath string, database *db.DB) error {
 		return true
 	})
 	return nil
+}
+
+func ScanRepository(rootPath string, database *db.DB) error {
+	return filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			if info.Name() == ".git" || info.Name() == "node_modules" || info.Name() == "data" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if ext == ".go" {
+			fmt.Printf(">>> Scanning: %s\n", path)
+			return ParseFile(path, database)
+		}
+
+		return nil
+	})
 }

@@ -15,7 +15,7 @@ func main() {
 	defer database.Conn.Close()
 	log.Println("Database initialized successfully.")
 
-	err = parser.ParseFile("testdata/dummy.go", database)
+	err = parser.ScanRepository("testdata", database)
 	if err != nil {
 		log.Fatalf("parser failed: %v", err)
 	}
