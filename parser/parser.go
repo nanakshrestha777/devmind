@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func ParseFile(filePath string, database *db.DB) error {
@@ -25,11 +26,15 @@ func ParseFile(filePath string, database *db.DB) error {
 			pos := fset.Position(funcDecl.Pos())
 			end := fset.Position(funcDecl.End())
 
-			// Set the current ID
+			cleanPath := strings.ReplaceAll(filePath, "\\", "/")
+
+			// Create the unique ID
 			currentFuncNodeID = fmt.Sprintf("%s:%d", funcDecl.Name.Name, pos.Line)
 
+			// Use currentFuncNodeID here, not nodeID
 			query := `INSERT OR REPLACE INTO nodes (id, name, type, file_path, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?)`
-			_, err := database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", filePath, pos.Line, end.Line)
+			_, err := database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", cleanPath, pos.Line, end.Line)
+
 			if err != nil {
 				fmt.Printf("Error inserting %s: %v\n", funcDecl.Name.Name, err)
 			} else {

@@ -3,25 +3,26 @@ package main
 import (
 	"devmind/db"
 	"devmind/parser"
+	"fmt"
 	"log"
+	"os"
 )
 
 func main() {
 	database, err := db.InitDB("data/devmind.db")
 	if err != nil {
-		log.Fatalf("Database initialization failed: %v", err)
+		log.Fatalf("DB Init failed: %v", err)
 	}
-
 	defer database.Conn.Close()
-	log.Println("Database initialized successfully.")
 
-	err = parser.ScanRepository("testdata", database)
-	if err != nil {
-		log.Fatalf("parser failed: %v", err)
+	// 1. Scan (Keep this to refresh your DB)
+	_ = parser.ScanRepository("testdata/gin", database)
+
+	// 2. Check Impact
+	if len(os.Args) > 1 {
+		targetFunc := os.Args[1] // Get function name from terminal
+		database.GetImpact(targetFunc)
+	} else {
+		fmt.Println("Usage: go run main.go <functionName>")
 	}
-
-	log.Println("Parsing completed successfully.")
-
-	database.GetFunctionReport()
-
 }

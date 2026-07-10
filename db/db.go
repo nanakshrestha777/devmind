@@ -101,6 +101,37 @@ func (db *DB) GetFunctionReport() {
 	}
 }
 
+func (db *DB) GetImpact(functionName string) {
+
+	query := `
+	SELECT e.from_node_id 
+	FROM edges e
+	\WHERE to_node_id = ? AND type = 'calls'`
+
+	rows, err := db.Conn.Query(query, functionName)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+
+	}
+
+	defer rows.Close()
+
+	fmt.Println("Impact Report for function:", functionName)
+
+	found := false
+	for rows.Next() {
+		var caller string
+		rows.Scan(&caller)
+		fmt.Printf("Warning: Changing '%s' wll affect: %s\n", functionName, caller)
+		found = true
+	}
+	if !found {
+		fmt.Println("No dependencies found. Safe to modify")
+
+	}
+}
+
 func (db *DB) Close() error {
 	return db.Conn.Close()
 }
