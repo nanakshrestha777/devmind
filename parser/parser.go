@@ -11,49 +11,51 @@ import (
 	"strings"
 )
 
-func ParseFile(filePath string, database *db.DB) error {
+// 1. The Interface
+type CodeParser interface {
+	Parse(filePath string, database *db.DB) error
+}
+
+// 2. The Implementation Struct
+type GoParser struct{}
+
+// Move your original ParseFile logic into the GoParser struct
+func (p *GoParser) Parse(filePath string, database *db.DB) error {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return err
 	}
 
-	var currentFuncNodeID string // Track the full ID (name:line)
+	var currentFuncNodeID string
 
 	ast.Inspect(node, func(n ast.Node) bool {
 		// 1. Handle Function Declarations
 		if funcDecl, ok := n.(*ast.FuncDecl); ok {
-			pos := fset.Position(funcDecl.Pos())
-			end := fset.Position(funcDecl.End())
-
 			cleanPath := strings.ReplaceAll(filePath, "\\", "/")
+			currentFuncNodeID = fmt.Sprintf("%s:%d", funcDecl.Name.Name, fset.Position(funcDecl.Pos()).Line)
 
-			// Create the unique ID
-			currentFuncNodeID = fmt.Sprintf("%s:%d", funcDecl.Name.Name, pos.Line)
-
-			// Use currentFuncNodeID here, not nodeID
 			query := `INSERT OR REPLACE INTO nodes (id, name, type, file_path, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?)`
-			_, err := database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", cleanPath, pos.Line, end.Line)
-
-			if err != nil {
-				fmt.Printf("Error inserting %s: %v\n", funcDecl.Name.Name, err)
-			} else {
-				fmt.Printf("Indexed function: %s\n", funcDecl.Name.Name)
-			}
+			database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", cleanPath, fset.Position(funcDecl.Pos()).Line, fset.Position(funcDecl.End()).Line)
 		}
 
+		// 2. Handle Function Calls (The logic you were missing)
 		if call, ok := n.(*ast.CallExpr); ok {
+			var callName string
+
+			// Detect Direct calls (myFunc()) AND Selector calls (db.Exec(), fmt.Println())
 			if ident, ok := call.Fun.(*ast.Ident); ok {
-				if currentFuncNodeID != "" {
-
-					fmt.Printf("Linking: %s -> calls -> %s\n", currentFuncNodeID, ident.Name)
-
-					query := `INSERT OR IGNORE INTO edges (from_node_id, to_node_id, type) VALUES (?, ?, ?)`
-					_, err := database.Conn.Exec(query, currentFuncNodeID, ident.Name, "calls")
-					if err != nil {
-						fmt.Printf("Error saving edge: %v\n", err)
-					}
+				callName = ident.Name
+			} else if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
+				if ident, ok := selector.X.(*ast.Ident); ok {
+					callName = fmt.Sprintf("%s.%s", ident.Name, selector.Sel.Name)
 				}
+			}
+
+			// Save the Edge if we are inside a function
+			if callName != "" && currentFuncNodeID != "" {
+				query := `INSERT OR IGNORE INTO edges (from_node_id, to_node_id, type) VALUES (?, ?, ?)`
+				database.Conn.Exec(query, currentFuncNodeID, callName, "calls")
 			}
 		}
 
@@ -62,25 +64,26 @@ func ParseFile(filePath string, database *db.DB) error {
 	return nil
 }
 
+// 3. The Factory
+func GetParser(language string) CodeParser {
+	switch language {
+	case "Go":
+		return &GoParser{}
+	default:
+		return nil
+	}
+}
+
+// 4. Your Scanner remains the same
 func ScanRepository(rootPath string, database *db.DB) error {
+	fmt.Printf(">>> Starting scan on: %s\n", rootPath) // ADD THIS
 	return filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+		// ... rest of your code
+		if filepath.Ext(path) == ".go" {
+			fmt.Printf(">>> Parsing: %s\n", path) // ADD THIS
+			p := GetParser("Go")
+			return p.Parse(path, database)
 		}
-
-		if info.IsDir() {
-			if info.Name() == ".git" || info.Name() == "node_modules" || info.Name() == "data" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		ext := filepath.Ext(path)
-		if ext == ".go" {
-			fmt.Printf(">>> Scanning: %s\n", path)
-			return ParseFile(path, database)
-		}
-
 		return nil
 	})
 }
