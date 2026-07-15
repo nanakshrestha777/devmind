@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // 1. The Interface
@@ -27,38 +26,45 @@ func (p *GoParser) Parse(filePath string, database *db.DB) error {
 		return err
 	}
 
+	// MOVE THIS OUTSIDE: It must persist across the whole file inspection
 	var currentFuncNodeID string
 
 	ast.Inspect(node, func(n ast.Node) bool {
 		// 1. Handle Function Declarations
 		if funcDecl, ok := n.(*ast.FuncDecl); ok {
-			cleanPath := strings.ReplaceAll(filePath, "\\", "/")
-			currentFuncNodeID = fmt.Sprintf("%s:%d", funcDecl.Name.Name, fset.Position(funcDecl.Pos()).Line)
+			startLine := fset.Position(funcDecl.Pos()).Line
+			cleanPath := filepath.ToSlash(filePath)
+
+			// Update the outer variable
+			currentFuncNodeID = fmt.Sprintf("%s:%s:%d", cleanPath, funcDecl.Name.Name, startLine)
 
 			query := `INSERT OR REPLACE INTO nodes (id, name, type, file_path, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?)`
-			database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", cleanPath, fset.Position(funcDecl.Pos()).Line, fset.Position(funcDecl.End()).Line)
+			database.Conn.Exec(query, currentFuncNodeID, funcDecl.Name.Name, "function", cleanPath, startLine, fset.Position(funcDecl.End()).Line)
 		}
 
-		// 2. Handle Function Calls (The logic you were missing)
+		// 2. Handle Function Calls
 		if call, ok := n.(*ast.CallExpr); ok {
 			var callName string
-
-			// Detect Direct calls (myFunc()) AND Selector calls (db.Exec(), fmt.Println())
-			if ident, ok := call.Fun.(*ast.Ident); ok {
-				callName = ident.Name
-			} else if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
-				if ident, ok := selector.X.(*ast.Ident); ok {
-					callName = fmt.Sprintf("%s.%s", ident.Name, selector.Sel.Name)
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				callName = fun.Name
+			case *ast.SelectorExpr:
+				if x, ok := fun.X.(*ast.Ident); ok {
+					callName = fmt.Sprintf("%s.%s", x.Name, fun.Sel.Name)
+				} else {
+					callName = fun.Sel.Name
 				}
 			}
 
-			// Save the Edge if we are inside a function
+			// USE THE OUTER VARIABLE: Do not re-declare it!
 			if callName != "" && currentFuncNodeID != "" {
 				query := `INSERT OR IGNORE INTO edges (from_node_id, to_node_id, type) VALUES (?, ?, ?)`
-				database.Conn.Exec(query, currentFuncNodeID, callName, "calls")
+				_, err := database.Conn.Exec(query, currentFuncNodeID, callName, "calls")
+				if err != nil {
+					fmt.Printf("Error saving edge: %v\n", err)
+				}
 			}
 		}
-
 		return true
 	})
 	return nil

@@ -3,7 +3,6 @@ package main
 import (
 	"devmind/db"
 	"devmind/parser"
-	"fmt"
 	"log"
 	"os"
 )
@@ -23,6 +22,6 @@ func main() {
 		targetFunc := os.Args[1] // Get function name from terminal
 		database.GetImpact(targetFunc)
 	} else {
-		fmt.Println("Usage: go run main.go <functionName>")
+		database.ShowProjectStats()
 	}
 }
