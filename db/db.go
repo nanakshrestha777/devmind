@@ -13,11 +13,8 @@ type DB struct {
 	Conn *sql.DB
 }
 
-func (db *DB) GetConnectionsForAI(targetFunc string) any {
-	panic("unimplemented")
-}
-
 func InitDB(dbpath string) (*DB, error) {
+
 	// 1. Create the directory if it doesn't exist (e.g., 'data/')
 	dir := filepath.Dir(dbpath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

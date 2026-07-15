@@ -47,3 +47,4 @@ func main() {
 		fmt.Println("Unknown command. Use 'impact' or 'explain'.")
 	}
 }
+
