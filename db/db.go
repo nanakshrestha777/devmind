@@ -13,6 +13,10 @@ type DB struct {
 	Conn *sql.DB
 }
 
+func (db *DB) GetConnectionsForAI(targetFunc string) any {
+	panic("unimplemented")
+}
+
 func InitDB(dbpath string) (*DB, error) {
 	// 1. Create the directory if it doesn't exist (e.g., 'data/')
 	dir := filepath.Dir(dbpath)
@@ -176,6 +180,30 @@ func (db *DB) ShowProjectStats() {
 		rows.Scan(&name, &count)
 		fmt.Printf("Function: %-20s | Called %d times\n", name, count)
 	}
+}
+
+// db/db.go
+func (db *DB) GetConnectionsForAI(functionName string) string {
+	query := `SELECT from_node_id FROM edges WHERE to_node_id = ?`
+	rows, err := db.Conn.Query(query, functionName)
+	if err != nil {
+		return "No data found."
+	}
+	defer rows.Close()
+
+	result := "Function " + functionName + " is called by: "
+	found := false
+	for rows.Next() {
+		var caller string
+		rows.Scan(&caller)
+		result += caller + ", "
+		found = true
+	}
+
+	if !found {
+		return "No dependencies found."
+	}
+	return result
 }
 
 func (db *DB) Close() error {
